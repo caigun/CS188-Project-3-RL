@@ -152,39 +152,42 @@ class PrioritizedSweepingValueIterationAgent(ValueIterationAgent):
             if self.mdp.isTerminal(state):
                 continue
             actions=self.mdp.getPossibleActions(state)
-            if actions:
+            if not actions:
                 continue
-            successors=self.mdp.getTransitionState(state, actions[0])[0]
-            for successor in successors:
-                if predeccessors[successor]==0:
-                    predeccessors[successor]=[]
-                predeccessors[successor].append(state)
-            
+            for action in actions:
+                successorsAndProbs=self.mdp.getTransitionStatesAndProbs(state, action)
+                successors=[i[0] for i in successorsAndProbs]
+                for successor in successors:
+                    if predeccessors[successor]==0:
+                        predeccessors[successor]=set()
+                    predeccessors[successor].add(state)
+
+        priorityState=util.PriorityQueue()
+
+        for state in self.mdp.getStates():
+            if self.mdp.isTerminal(state):
+                continue
+            actions=self.mdp.getPossibleActions(state)
+            if not actions:
+                continue
+            q=self.computeQValueFromValues(state, self.computeActionFromValues(state))
+            diff=abs(q-self.values[state])
+            priorityState.push(state,-diff)
+
         while self.iterations>0:
-            new=util.Counter()
-            priorityState=util.Queue()
-
-            for state in self.mdp.getStates():
-                if self.mdp.isTerminal():
-                    continue
-                actions=self.mdp.getPossibleActions(state)
-                if not actions:
-                    continue
-                q=float('-inf')
-                for action in actions:
-                    newQ=self.computeQValueFromValues(state, action)
-                    if newQ>q:
-                        q=newQ
-                diff=abs(q-self.values[state])
-                priorityState.push(state,-diff)
-
-            while not priorityState.isEmpty():
+            if not priorityState.isEmpty():
                 state=priorityState.pop()
-                s=self.values()
-                if not self.mdp.isTerminalState(state):
-                    self.values[state]=s
+                if not self.mdp.isTerminal(state):
+                    self.values[state]=self.computeQValueFromValues(state, self.computeActionFromValues(state))
+                if predeccessors[state]==0:
+                    continue
                 for p in predeccessors[state]:
+                    if self.mdp.isTerminal(p):
+                        continue
                     pValue=self.values[p]
-                    
-            self.values=new
+                    q=self.computeQValueFromValues(p, self.computeActionFromValues(p))
+                    diff=abs(q-pValue)
+                    if diff>self.theta:
+                        priorityState.update(p, -diff)
+            else:break
             self.iterations-=1
